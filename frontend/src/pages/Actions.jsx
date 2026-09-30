@@ -1,0 +1,20 @@
+import { ArrowUpRight, Check, ClipboardCheck, Clock3, Search, ShieldAlert, TriangleAlert } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { PageHeading, StatusBadge } from '../components/Primitives.jsx';
+import { api, jsonBody } from '../services/api';
+
+const statuses = ['Open', 'In Progress', 'Completed'];
+export default function Actions() {
+  const [items, setItems] = useState([]); const [error, setError] = useState(''); const [saving, setSaving] = useState('');
+  useEffect(() => { api('/actions').then(setItems).catch((err) => setError(err.message)); }, []);
+  async function update(id, status) {
+    setSaving(id); setError('');
+    try { const updated = await api(`/actions/${id}`, { method: 'PUT', body: jsonBody({ status }) }); setItems((list) => list.map((item) => item.id === id ? updated : item)); }
+    catch (err) { setError(err.message); } finally { setSaving(''); }
+  }
+  const open = items.filter((item) => item.status !== 'Completed').length;
+  const overdue = items.filter((item) => item.status !== 'Completed' && item.dueDate < new Date().toISOString().slice(0, 10)).length;
+  return <><PageHeading eyebrow="CONTROL FOLLOW-THROUGH" title="Corrective actions" description="Keep ownership, due dates, and status visible as issues move toward closure." /><section className="action-summary"><div><span className="action-summary-icon action-open"><ClipboardCheck size={18} /></span><span><small>OPEN ACTIONS</small><b>{open}</b></span></div><div><span className="action-summary-icon action-overdue"><Clock3 size={18} /></span><span><small>OVERDUE</small><b>{overdue}</b></span></div><div><span className="action-summary-icon action-complete"><Check size={18} /></span><span><small>COMPLETED</small><b>{items.length - open}</b></span></div><div className="action-summary-note"><ShieldAlert size={15} /><span>Prototype tracking · assign owners through local coordination</span></div></section>{error && <div className="inline-error"><TriangleAlert size={16} />{error}</div>}<section className="panel action-table-panel"><div className="panel-heading"><div><span className="eyebrow">FOLLOW-UP REGISTER</span><h2>Action register</h2></div><span className="result-count">{items.length} actions</span></div><div className="action-list-head"><span>ACTION / SOURCE REPORT</span><span>OWNER</span><span>DUE DATE</span><span>PRIORITY</span><span>STATUS</span><span /></div>{items.map((item) => <div className="action-list-row" key={item.id}><div className="action-description"><span className={`action-leading action-priority-${item.priority.toLowerCase()}`}><ClipboardCheck size={17} /></span><div><b>{item.action}</b><Link to={`/reports/${item.reportId}`}>{item.reportTitle} <ArrowUpRight size={12} /></Link></div></div><span className="action-owner">{item.owner}</span><span className={`action-due ${item.status !== 'Completed' && item.dueDate < new Date().toISOString().slice(0, 10) ? 'due-over' : ''}`}>{formatDate(item.dueDate)}{item.status !== 'Completed' && item.dueDate < new Date().toISOString().slice(0, 10) && <small>OVERDUE</small>}</span><span className={`priority-label priority-${item.priority.toLowerCase()}`}><i />{item.priority}</span><div className="action-status-control"><StatusBadge value={item.status} /><select value={item.status} disabled={saving === item.id} onChange={(event) => update(item.id, event.target.value)} aria-label={`Update status for ${item.action}`}>{statuses.map((status) => <option key={status}>{status}</option>)}</select></div><Link className="row-arrow" to={`/reports/${item.reportId}`} aria-label={`Open linked report ${item.reportTitle}`}><ArrowUpRight size={16} /></Link></div>)}{!items.length && !error && <div className="table-empty"><Search size={22} /><b>No corrective actions</b><span>Actions will appear here when linked to reports.</span></div>}</section></>;
+}
+function formatDate(value) { return new Date(`${value}T12:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
